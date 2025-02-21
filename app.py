@@ -4,6 +4,8 @@ from flask_jwt_extended import JWTManager
 from flask_mail import Mail
 import os
 
+
+
 # Initialize the app
 app = Flask(__name__)
 
@@ -26,14 +28,19 @@ jwt = JWTManager(app)
 # Initialize Flask-Mail
 mail = Mail(app)
 
-# Register Blueprints
-from user_bp import user_bp  # Import the user blueprint you created earlier
-from meal_bp import meal_bp  # Assuming you'll create a blueprint for meal management
-from cart_bp import cart_bp  # Assuming you'll create a blueprint for cart management
+# Import blueprints
+from Views.auth import auth_bp
+from Views.user import user_bp
+from Views.meal import meal_bp
+from Views.menu import menu_bp
+from Views.order import order_bp
 
-app.register_blueprint(user_bp, url_prefix='/api/v1/users')
-app.register_blueprint(meal_bp, url_prefix='/api/v1/meals')
-app.register_blueprint(cart_bp, url_prefix='/api/v1/cart')
+    # Register blueprints
+app.register_blueprint(auth_bp)
+app.register_blueprint(user_bp)
+app.register_blueprint(meal_bp)
+app.register_blueprint(menu_bp)
+app.register_blueprint(order_bp)
 
 # Home route
 @app.route('/')
