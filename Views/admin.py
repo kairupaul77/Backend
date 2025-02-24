@@ -9,11 +9,11 @@ admin_bp = Blueprint("admin_bp", __name__)
 @admin_bp.route("/admin/meals", methods=["POST"])
 @jwt_required()
 def add_meal():
-    # Admin check
+    # Caterer check
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-    if not user or not user.is_admin:
-        return jsonify({"error": "Access denied, admin privileges required"}), 403
+    if not user or user.role != 'caterer':
+        return jsonify({"error": "Access denied, caterer privileges required"}), 403
 
     data = request.get_json()
     name = data.get('name')
@@ -32,11 +32,11 @@ def add_meal():
 @admin_bp.route("/admin/orders", methods=["GET"])
 @jwt_required()
 def fetch_all_orders():
-    # Admin check
+    # Caterer check
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-    if not user or not user.is_admin:
-        return jsonify({"error": "Access denied, admin privileges required"}), 403
+    if not user or user.role != 'caterer':
+        return jsonify({"error": "Access denied, caterer privileges required"}), 403
 
     orders = Order.query.all()
     if not orders:
@@ -58,11 +58,11 @@ def fetch_all_orders():
 @admin_bp.route("/admin/earnings", methods=["GET"])
 @jwt_required()
 def view_earnings():
-    # Admin check
+    # Caterer check
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-    if not user or not user.is_admin:
-        return jsonify({"error": "Access denied, admin privileges required"}), 403
+    if not user or user.role != 'caterer':
+        return jsonify({"error": "Access denied, caterer privileges required"}), 403
 
     # Calculate total earnings for the day
     today = datetime.utcnow().date()
@@ -82,11 +82,11 @@ def view_earnings():
 @admin_bp.route("/admin/meals/<int:meal_id>", methods=["DELETE"])
 @jwt_required()
 def delete_meal(meal_id):
-    # Admin check
+    # Caterer check
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-    if not user or not user.is_admin:
-        return jsonify({"error": "Access denied, admin privileges required"}), 403
+    if not user or user.role != 'caterer':
+        return jsonify({"error": "Access denied, caterer privileges required"}), 403
 
     meal = Meal.query.get(meal_id)
     if not meal:
