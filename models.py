@@ -17,11 +17,11 @@ class User(db.Model):
     facebook_id = db.Column(db.String(100))  # For Facebook login
 
     # Relationships
-    meals = db.relationship('Meal', backref='caterer', lazy=True)
-    menus = db.relationship('Menu', backref='caterer', lazy=True)
-    orders = db.relationship('Order', backref='customer', lazy=True)
-    notifications = db.relationship('Notification', backref='notification_user', lazy=True)  # Changed backref name
-    carts = db.relationship('Cart', backref='user', lazy=True)
+    meals = db.relationship('Meal', back_populates='caterer', lazy=True)
+    menus = db.relationship('Menu', back_populates='caterer', lazy=True)
+    orders = db.relationship('Order', back_populates='customer', lazy=True)
+    notifications = db.relationship('Notification', back_populates='user', lazy=True)
+    carts = db.relationship('Cart', back_populates='user', lazy=True)
 
     # Password hashing
     def set_password(self, password):
@@ -47,7 +47,8 @@ class Meal(db.Model):
     caterer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
 
     # Relationships
-    carts = db.relationship('CartItem', backref='meal_carts', lazy=True)  # Updated backref name
+    carts = db.relationship('CartItem', back_populates='meal', lazy=True)  # Updated back_populates name
+    caterer = db.relationship('User', back_populates='meals')  # Added relationship to caterer
 
     def to_dict(self):
         return {
@@ -64,6 +65,8 @@ class Menu(db.Model):
     caterer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     meals = db.relationship('Meal', secondary='menu_meals', lazy='subquery')
 
+    # Relationship with the caterer
+    caterer = db.relationship('User', back_populates='menus')
 
 menu_meals = db.Table('menu_meals',
     db.Column('menu_id', db.Integer, db.ForeignKey('menus.id'), primary_key=True),
@@ -80,6 +83,11 @@ class Order(db.Model):
     quantity = db.Column(db.Integer, default=1)
     total_price = db.Column(db.Float)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    customer = db.relationship('User', back_populates='orders')
+    meal = db.relationship('Meal', backref='orders', lazy=True)
+    menu = db.relationship('Menu', backref='orders', lazy=True)
 
     def to_dict(self):
         meal = Meal.query.get(self.meal_id)
@@ -106,7 +114,7 @@ class Notification(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
-    user = db.relationship('User', backref=db.backref('notification_user', lazy=True))  # Changed backref name
+    user = db.relationship('User', back_populates='notifications')
 
     def to_dict(self):
         return {
@@ -126,7 +134,7 @@ class Cart(db.Model):
 
     # Relationship with CartItem
     items = db.relationship('CartItem', back_populates='cart', cascade="all, delete-orphan")
-
+    user = db.relationship('User', back_populates='carts')
 
 class CartItem(db.Model):
     __tablename__ = 'cart_items'
@@ -137,7 +145,7 @@ class CartItem(db.Model):
 
     # Relationships
     cart = db.relationship('Cart', back_populates='items')
-    meal = db.relationship('Meal', backref=db.backref('cart_items', lazy=True))  # No conflict now
+    meal = db.relationship('Meal', back_populates='carts')  # Updated back_populates name
 
     def to_dict(self):
         return {
