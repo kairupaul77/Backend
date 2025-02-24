@@ -1,9 +1,10 @@
 from flask import jsonify, request, Blueprint
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from datetime import datetime
 from app import db, app, mail
 from flask_mail import Message
-from models import User, Cart, Meal, Order
+from models import User, Meal, Menu, Order, Notification, Cart, CartItem, TokenBlocklist
 
 user_bp = Blueprint("user_bp", __name__)
 
@@ -18,9 +19,9 @@ def fetch_users():
         user_list.append({
             'id': user.id,
             'email': user.email,
-            'is_approved': user.is_approved,
-            'is_admin': user.is_admin,
             'username': user.username,
+            'role': user.role,
+            'profile_img': user.profile_img,
         })
 
     return jsonify(user_list)
@@ -30,32 +31,38 @@ def fetch_users():
 @user_bp.route("/users", methods=["POST"])
 def add_user():
     data = request.get_json()
-    username = data['username']
-    email = data['email']
-    password = generate_password_hash(data['password'])
+    username = data.get('username')
+    email = data.get('email')
+    password = data.get('password')
+
+    if not username or not email or not password:
+        return jsonify({"error": "Missing required fields (username, email, password)"}), 400
 
     check_username = User.query.filter_by(username=username).first()
     check_email = User.query.filter_by(email=email).first()
 
     if check_username or check_email:
-        return jsonify({"error": "Username/email exists"}), 406
-    else:
-        new_user = User(username=username, email=email, password=password)
-        db.session.add(new_user)
-        db.session.commit()
+        return jsonify({"error": "Username or email already exists"}), 409
 
-        # Optional: Send welcome email
-        try:
-            msg = Message(
-                subject="Welcome to Book-A-Meal",
-                sender=app.config["MAIL_DEFAULT_SENDER"],
-                recipients=[email],
-                body="Thank you for registering with Book-A-Meal! We hope you enjoy our service."
-            )
-            mail.send(msg)
-            return jsonify({"msg": "User saved successfully!"}), 201
-        except Exception as e:
-            return jsonify({"error": f"Failed to send email: {str(e)}"}), 406
+    # Create a new user
+    new_user = User(username=username, email=email)
+    new_user.set_password(password)  # Hash and store the password
+
+    db.session.add(new_user)
+    db.session.commit()
+
+    # Optional: Send welcome email
+    try:
+        msg = Message(
+            subject="Welcome to Book-A-Meal",
+            sender=app.config["MAIL_DEFAULT_SENDER"],
+            recipients=[email],
+            body="Thank you for registering with Book-A-Meal! We hope you enjoy our service."
+        )
+        mail.send(msg)
+        return jsonify({"msg": "User registered successfully!"}), 201
+    except Exception as e:
+        return jsonify({"error": f"Failed to send email: {str(e)}"}), 500
 
 
 # Update user details
@@ -65,26 +72,33 @@ def update_user(user_id):
     current_user_id = get_jwt_identity()  # Get user from JWT token
     user = User.query.get(user_id)
 
-    if user and user.id == current_user_id:
-        data = request.get_json()
-        username = data.get('username', user.username)
-        email = data.get('email', user.email)
-        password = data.get('password', user.password)
-
-        check_username = User.query.filter_by(username=username).first()
-        check_email = User.query.filter_by(email=email).first()
-
-        if (check_username and check_username.id != user.id) or (check_email and check_email.id != user.id):
-            return jsonify({"error": "Username/email exists"}), 406
-
-        user.username = username
-        user.email = email
-        user.password = generate_password_hash(password) if password else user.password
-
-        db.session.commit()
-        return jsonify({"success": "Updated successfully"}), 200
-    else:
+    if not user or user.id != current_user_id:
         return jsonify({"error": "User doesn't exist or unauthorized"}), 404
+
+    data = request.get_json()
+    username = data.get('username', user.username)
+    email = data.get('email', user.email)
+    password = data.get('password')
+
+    # Check if the new username or email already exists
+    if username != user.username:
+        check_username = User.query.filter_by(username=username).first()
+        if check_username:
+            return jsonify({"error": "Username already exists"}), 409
+
+    if email != user.email:
+        check_email = User.query.filter_by(email=email).first()
+        if check_email:
+            return jsonify({"error": "Email already exists"}), 409
+
+    # Update user details
+    user.username = username
+    user.email = email
+    if password:
+        user.set_password(password)  # Hash and store the new password
+
+    db.session.commit()
+    return jsonify({"success": "User updated successfully"}), 200
 
 
 # Delete user
@@ -94,65 +108,78 @@ def delete_user(user_id):
     current_user_id = get_jwt_identity()  # Get user from JWT token
     user = User.query.get(user_id)
 
-    if user and user.id == current_user_id:
-        db.session.delete(user)
-        db.session.commit()
-        return jsonify({"success": "Deleted successfully"}), 200
-    else:
+    if not user or user.id != current_user_id:
         return jsonify({"error": "User doesn't exist or unauthorized to delete this user"}), 404
+
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({"success": "User deleted successfully"}), 200
 
 
 # User Login - Generate JWT Token
 @user_bp.route("/login", methods=["POST"])
 def login():
     data = request.get_json()
-    email = data['email']
-    password = data['password']
+    email = data.get('email')
+    password = data.get('password')
+
+    if not email or not password:
+        return jsonify({"error": "Missing email or password"}), 400
 
     user = User.query.filter_by(email=email).first()
 
-    if user and check_password_hash(user.password, password):
+    if user and user.check_password(password):
         access_token = create_access_token(identity=user.id)
         return jsonify(access_token=access_token), 200
     else:
-        return jsonify({"error": "Invalid credentials"}), 401
+        return jsonify({"error": "Invalid email or password"}), 401
 
 
 # Password Reset Request (send email)
 @user_bp.route("/password-reset", methods=["POST"])
 def password_reset():
     data = request.get_json()
-    email = data['email']
+    email = data.get('email')
+
+    if not email:
+        return jsonify({"error": "Email is required"}), 400
 
     user = User.query.filter_by(email=email).first()
-    if user:
-        reset_token = generate_password_hash(user.email)  # Token can be an encrypted unique string
-        try:
-            msg = Message(
-                subject="Password Reset Request",
-                sender=app.config["MAIL_DEFAULT_SENDER"],
-                recipients=[email],
-                body=f"To reset your password, click the link: /reset-password/{reset_token}"
-            )
-            mail.send(msg)
-            return jsonify({"msg": "Password reset link sent to email"}), 200
-        except Exception as e:
-            return jsonify({"error": f"Failed to send email: {str(e)}"}), 500
-    else:
+    if not user:
         return jsonify({"error": "Email not found"}), 404
+
+    # Generate a reset token (this is a simple example; use a proper token generation mechanism in production)
+    reset_token = generate_password_hash(user.email + str(datetime.utcnow()))  # Example token
+
+    try:
+        msg = Message(
+            subject="Password Reset Request",
+            sender=app.config["MAIL_DEFAULT_SENDER"],
+            recipients=[email],
+            body=f"To reset your password, click the link: /reset-password/{reset_token}"
+        )
+        mail.send(msg)
+        return jsonify({"msg": "Password reset link sent to email"}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to send email: {str(e)}"}), 500
 
 
 # Password Reset - Update Password
 @user_bp.route("/reset-password/<token>", methods=["POST"])
 def reset_password(token):
     data = request.get_json()
-    new_password = data['password']
+    new_password = data.get('password')
 
-    # Decrypt and validate token (implementation based on your security mechanism)
+    if not new_password:
+        return jsonify({"error": "New password is required"}), 400
+
+    # Decrypt and validate token (this is a simple example; use a proper token validation mechanism in production)
     user = User.query.filter_by(email=token).first()  # Example based on email being used as token (change for real use)
-    if user:
-        user.password = generate_password_hash(new_password)
-        db.session.commit()
-        return jsonify({"msg": "Password updated successfully"}), 200
-    else:
+    if not user:
         return jsonify({"error": "Invalid or expired reset token"}), 400
+
+    # Update the user's password
+    user.set_password(new_password)
+    db.session.commit()
+
+    return jsonify({"msg": "Password updated successfully"}), 200

@@ -1,28 +1,44 @@
 from datetime import datetime
-from flask_sqlalchemy import SQLAlchemy
-
-
-db = SQLAlchemy()
+from werkzeug.security import generate_password_hash, check_password_hash
+from extensions import db  # Import db from extensions.py
 
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(128))
+    username = db.Column(db.String(80), unique=True, nullable=False)  # Added username field
+    password_hash = db.Column(db.String(128))  # Store hashed passwords
     role = db.Column(db.String(20), default='customer')  # 'customer' or 'caterer'
     profile_img = db.Column(db.String(256))
     reset_token = db.Column(db.String(100))
     reset_token_expiry = db.Column(db.DateTime)
-    google_id = db.Column(db.String(100))
+    google_id = db.Column(db.String(100))  # For Google login
+    github_id = db.Column(db.String(100))  # For GitHub login
+    facebook_id = db.Column(db.String(100))  # For Facebook login
 
     # Relationships
     meals = db.relationship('Meal', backref='caterer', lazy=True)
     menus = db.relationship('Menu', backref='caterer', lazy=True)
     orders = db.relationship('Order', backref='customer', lazy=True)
-    notifications = db.relationship('Notification', backref='user', lazy=True)
+    notifications = db.relationship('Notification', backref='notification_user', lazy=True)  # Changed backref name
     carts = db.relationship('Cart', backref='user', lazy=True)
 
-  
+    # Password hashing
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    # Method to generate JWT token
+    def generate_auth_token(self):
+        from flask_jwt_extended import create_access_token
+        return create_access_token(identity=self.id)
+
+    def __repr__(self):
+        return f'<User {self.email}>'
+
+
 class Meal(db.Model):
     __tablename__ = 'meals'
     id = db.Column(db.Integer, primary_key=True)
@@ -31,7 +47,7 @@ class Meal(db.Model):
     caterer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
 
     # Relationships
-    carts = db.relationship('CartItem', backref='meal', lazy=True)
+    carts = db.relationship('CartItem', backref='meal_carts', lazy=True)  # Updated backref name
 
     def to_dict(self):
         return {
@@ -48,10 +64,12 @@ class Menu(db.Model):
     caterer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     meals = db.relationship('Meal', secondary='menu_meals', lazy='subquery')
 
+
 menu_meals = db.Table('menu_meals',
     db.Column('menu_id', db.Integer, db.ForeignKey('menus.id'), primary_key=True),
     db.Column('meal_id', db.Integer, db.ForeignKey('meals.id'), primary_key=True)
 )
+
 
 class Order(db.Model):
     __tablename__ = 'orders'
@@ -79,18 +97,16 @@ class Order(db.Model):
         }
 
 
-
 class Notification(db.Model):
     __tablename__ = 'notifications'
-    
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     message = db.Column(db.String(255))
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
+
     # Relationships
-    user = db.relationship('User', backref=db.backref('notifications', lazy=True))
+    user = db.relationship('User', backref=db.backref('notification_user', lazy=True))  # Changed backref name
 
     def to_dict(self):
         return {
@@ -101,6 +117,7 @@ class Notification(db.Model):
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S')  # Formatting date
         }
 
+
 class Cart(db.Model):
     __tablename__ = 'carts'
     id = db.Column(db.Integer, primary_key=True)
@@ -109,6 +126,7 @@ class Cart(db.Model):
 
     # Relationship with CartItem
     items = db.relationship('CartItem', back_populates='cart', cascade="all, delete-orphan")
+
 
 class CartItem(db.Model):
     __tablename__ = 'cart_items'
@@ -119,7 +137,7 @@ class CartItem(db.Model):
 
     # Relationships
     cart = db.relationship('Cart', back_populates='items')
-    meal = db.relationship('Meal', backref=db.backref('cart_items', lazy=True))
+    meal = db.relationship('Meal', backref=db.backref('cart_items', lazy=True))  # No conflict now
 
     def to_dict(self):
         return {
@@ -132,12 +150,13 @@ class CartItem(db.Model):
                 'price': self.meal.price
             }
         }
-        
+
+
 class TokenBlocklist(db.Model):
-    _tablename_ = 'token_blocklist'
+    __tablename__ = 'token_blocklist'
     id = db.Column(db.Integer, primary_key=True)
     jti = db.Column(db.String(36), nullable=False)  # JWT ID (unique identifier for the token)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)  # Timestamp of when the token was revoked
 
-    def _repr_(self):
-        return f"<TokenBlocklist {self.jti}>"        
+    def __repr__(self):
+        return f"<TokenBlocklist {self.jti}>"
