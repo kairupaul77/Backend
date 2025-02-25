@@ -18,12 +18,16 @@ from Views.meal import meal_bp
 from Views.menu import menu_bp
 from Views.order import order_bp
 from dotenv import load_dotenv
+from flask_cors import CORS  # Import Flask-CORS
 
 # Load environment variables
 load_dotenv()
 
 # Initialize the app
 app = Flask(__name__)
+# Enable CORS for all routes
+CORS(app, resources={r"/*": {"origins": ["http://localhost:5173"]}})
+
 
 # Flask app configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///app.db')  # Use SQLite
