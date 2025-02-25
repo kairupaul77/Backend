@@ -36,6 +36,10 @@ app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
 app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER')
 
+# Add missing secret keys
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'your_super_secret_key')
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'your_other_secret_key')
+
 # Initialize extensions
 db.init_app(app)
 migrate = Migrate(app, db)
