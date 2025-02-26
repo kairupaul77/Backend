@@ -4,7 +4,6 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-flask-migrate = "*"
 werkzeug = "*"
 flask-dance = "*"
 flask = "*"
@@ -13,9 +12,11 @@ celery = "*"
 redis = "*"
 google-auth-oauthlib = "*"
 google-api-python-client = "*"
-python-dotenv = "*"
 itsdangerous = "*"
 flask-jwt-extended = "*"
+flask-sqlalchemy = "*"
+flask-migrate = "*"
+python-dotenv = "*"
 flask-cors = "*"
 
 [dev-packages]
