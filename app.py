@@ -11,12 +11,10 @@ from extensions import db
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from werkzeug.security import generate_password_hash
-from models import User, Meal, Menu, Order, Notification, Cart, CartItem, TokenBlocklist
+from models import User, Meal, TokenBlocklist
 from Views.auth import auth_bp
 from Views.user import user_bp
 from Views.meal import meal_bp
-from Views.menu import menu_bp
-from Views.order import order_bp
 from dotenv import load_dotenv
 from flask_cors import CORS  # Import Flask-CORS
 
@@ -26,8 +24,7 @@ load_dotenv()
 # Initialize the app
 app = Flask(__name__)
 # Enable CORS for all routes
-CORS(app, resources={r"/*": {"origins": ["http://localhost:5173"]}})
-
+CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://localhost:5174"]}})
 
 # Flask app configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///app.db')  # Use SQLite
@@ -43,6 +40,9 @@ app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER')
 # Add missing secret keys
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'your_super_secret_key')
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'your_other_secret_key')
+
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 900  # 15 minutes
+app.config["JWT_REFRESH_TOKEN_EXPIRES"] = 86400  # 1 day
 
 # Initialize extensions
 db.init_app(app)
@@ -137,8 +137,6 @@ def send_email(subject, recipients, body):
 app.register_blueprint(auth_bp)
 app.register_blueprint(user_bp)
 app.register_blueprint(meal_bp)
-app.register_blueprint(menu_bp)
-app.register_blueprint(order_bp)
 
 # Home route
 @app.route('/')

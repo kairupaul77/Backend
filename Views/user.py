@@ -5,29 +5,11 @@ from datetime import datetime
 from extensions import db, mail  # Assuming `db` and `mail` are initialized in extensions.py
 from flask_mail import Message
 from itsdangerous import URLSafeTimedSerializer
-from models import User, Meal, Menu, Order, Notification, Cart, CartItem, TokenBlocklist
+from models import User, Meal, TokenBlocklist
 
 user_bp = Blueprint("user_bp", __name__)
 
-# Fetch all users
-@user_bp.route("/users", methods=["GET"])
-@jwt_required()
-def fetch_users():
-    # Fetch users only if the requester has admin privileges
-    current_user = User.query.get(get_jwt_identity())
-    if current_user.role != "admin":
-        return jsonify({"error": "Unauthorized access"}), 403
 
-    users = User.query.all()
-    user_list = [{
-        'id': user.id,
-        'email': user.email,
-        'username': user.username,
-        'role': user.role,
-        'profile_img': user.profile_img,
-    } for user in users]
-
-    return jsonify(user_list), 200
 
 
 # Add user (Registration)
@@ -64,21 +46,27 @@ def add_user():
     except Exception as e:
         return jsonify({"error": f"Failed to send email: {str(e)}"}), 500
 
-
-# Update user details
+# Update user details (username, email, password, and role)
 @user_bp.route("/users/<int:user_id>", methods=["PATCH"])
 @jwt_required()
 def update_user(user_id):
     current_user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    user = User.query.get(user_id)  # User to be updated
 
-    if not user or user.id != current_user_id:
-        return jsonify({"error": "User doesn't exist or unauthorized"}), 404
+    if not user:
+        return jsonify({"error": "User doesn't exist"}), 404
 
     data = request.get_json()
     username = data.get('username', user.username)
     email = data.get('email', user.email)
     password = data.get('password')
+    new_role = data.get('role')
+
+    # Validate role (optional, if role changes are needed)
+    if new_role and new_role not in ["customer", "admin", "caterer"]:
+        return jsonify({"error": "Invalid role"}), 400
+
+    user.role = new_role if new_role else user.role  # Allow role update without restriction
 
     # Check if the new username or email already exists
     if username != user.username and User.query.filter_by(username=username).first():
@@ -87,14 +75,17 @@ def update_user(user_id):
     if email != user.email and User.query.filter_by(email=email).first():
         return jsonify({"error": "Email already exists"}), 409
 
-    # Update user details
+    # Apply updates
     user.username = username
     user.email = email
     if password:
         user.set_password(password)
 
     db.session.commit()
-    return jsonify({"success": "User updated successfully"}), 200
+    return jsonify({
+        "success": "User updated successfully",
+        "new_role": user.role
+    }), 200
 
 
 # Delete user

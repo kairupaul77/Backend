@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import Notification, db
+
 from utils.pagination import paginate
 
 notification_bp = Blueprint('notification_bp', __name__, )
