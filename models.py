@@ -1,28 +1,35 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from werkzeug.security import generate_password_hash, check_password_hash
 from extensions import db  # Import db from extensions.py
 from flask_jwt_extended import create_access_token
+from sqlalchemy import DateTime, Column, Date  # Add Date here
+
+# Association table for many-to-many relationship between Menu and Meal
+menu_meals = db.Table(
+    'menu_meals',
+    db.Column('menu_id', db.Integer, db.ForeignKey('menus.id', ondelete="CASCADE"), primary_key=True),
+    db.Column('meal_id', db.Integer, db.ForeignKey('meals.id', ondelete="CASCADE"), primary_key=True)
+)
 
 class User(db.Model):
     __tablename__ = 'users'
     
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    username = db.Column(db.String(80), unique=True, nullable=False)  # Added username field
-    password_hash = db.Column(db.String(128))  # Store hashed passwords
-    role = db.Column(db.String(20), default='customer')  # 'customer' or 'caterer'
-    profile_img = db.Column(db.String(256))
-    reset_token = db.Column(db.String(100))
-    reset_token_expiry = db.Column(db.DateTime)
-    google_id = db.Column(db.String(100))  # For Google login
-    github_id = db.Column(db.String(100))  # For GitHub login
-    facebook_id = db.Column(db.String(100))  # For Facebook login
-    is_admin = db.Column(db.Boolean, default=False)  # Added is_admin field
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(128))
+    role = db.Column(db.String(20), default='customer')
+    profile_img = db.Column(db.String(256), default='default_profile_img.png')
+    reset_token = db.Column(db.String(100), nullable=True)
+    reset_token_expiry = db.Column(db.DateTime, nullable=True)
+    google_id = db.Column(db.String(100), unique=True, nullable=True)
+    github_id = db.Column(db.String(100), unique=True, nullable=True)
+    facebook_id = db.Column(db.String(100), unique=True, nullable=True)
 
-    # Relationships
     meals = db.relationship('Meal', back_populates='caterer', lazy=True, cascade="all, delete-orphan")
+    orders = db.relationship('Order', back_populates='user', cascade="all, delete-orphan")
+    notifications = db.relationship('Notification', back_populates='user', cascade="all, delete-orphan")
 
-    # Password hashing
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
@@ -30,39 +37,101 @@ class User(db.Model):
         return check_password_hash(self.password_hash, password)
 
     def generate_auth_token(self):
-        expires = timedelta(minutes=30)  # Token expires in 30 minutes
-        return create_access_token(identity=self.email, expires_delta=expires)
+        expires = timedelta(minutes=30)
+        return create_access_token(identity=self.id, expires_delta=expires)
 
     def __repr__(self):
         return f'<User {self.username} ({self.email})>'
 
 class Meal(db.Model):
-    __tablename__ = 'meals'  # Ensure table name is explicit
-    
+    __tablename__ = 'meals'
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     price = db.Column(db.Float, nullable=False)
-    image_url = db.Column(db.String(255), nullable=True)
-    caterer_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete="CASCADE"), nullable=False)  # Foreign Key to User
+    image_url = db.Column(db.String(255), default='default_meal_img.png')
+    caterer_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete="CASCADE"), nullable=False)
 
-    caterer = db.relationship('User', back_populates='meals')  # Correct back_populates
-
-    def __init__(self, name, price, image_url, caterer_id):
-        self.name = name
-        self.price = price
-        self.image_url = image_url
-        self.caterer_id = caterer_id
+    caterer = db.relationship('User', back_populates='meals')
+    menus = db.relationship('Menu', secondary=menu_meals, back_populates='meals')
 
     def __repr__(self):
         return f'<Meal {self.name} - ${self.price}>'
 
+class Menu(db.Model):
+    __tablename__ = 'menus'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=True)
+    date = db.Column(Date, nullable=False, unique=True, index=True)
+
+    meals = db.relationship('Meal', secondary=menu_meals, back_populates='menus')
+    orders = db.relationship('Order', backref='menu', cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f'<Menu {self.name} - {self.date}>'
+
+class Order(db.Model):
+    __tablename__ = 'orders'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete="CASCADE"), nullable=False)
+    meal_id = db.Column(db.Integer, db.ForeignKey('meals.id', ondelete="CASCADE"), nullable=False)
+    menu_id = db.Column(db.Integer, db.ForeignKey('menus.id', ondelete="CASCADE"), nullable=False)
+    date = db.Column(DateTime, nullable=False, default=datetime.utcnow)
+    quantity = db.Column(db.Integer, nullable=False, default=1)
+    total_price = db.Column(db.Float, nullable=False)
+    status = db.Column(db.String(20), default='pending')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User', back_populates='orders')
+    meal = db.relationship('Meal', backref='orders')
+
+    def update_order(self, new_meal_id, new_quantity):
+        """Allows the user to change their meal choice."""
+        self.meal_id = new_meal_id
+        self.quantity = new_quantity
+        self.total_price = self.meal.price * new_quantity
+        db.session.commit()
+
+    @staticmethod
+    def get_daily_revenue(date):
+        """Calculates total revenue for a specific day."""
+        total_revenue = db.session.query(db.func.sum(Order.total_price))\
+            .join(Menu, Order.menu_id == Menu.id)\
+            .filter(Menu.date == date).scalar()
+        return total_revenue or 0
+
+    def __repr__(self):
+        return f'<Order {self.id} - {self.status} - ${self.total_price}>'
+
+class Notification(db.Model):
+    __tablename__ = 'notifications'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete="CASCADE"), nullable=False)
+    message = db.Column(db.String(255), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', back_populates='notifications')
+
+    def mark_as_read(self):
+        """Mark the notification as read."""
+        self.is_read = True
+        db.session.commit()
+
+    def __repr__(self):
+        return f'<Notification {self.id} - {self.message}>'
 
 class TokenBlocklist(db.Model):
     __tablename__ = 'token_blocklist'
-    
+
     id = db.Column(db.Integer, primary_key=True)
-    jti = db.Column(db.String(36), nullable=False)  # JWT ID (unique identifier for the token)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # Timestamp of when the token was revoked
+    jti = db.Column(db.String(36), nullable=False, unique=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
-        return f"<TokenBlocklist {self.jti}>"
+        return f'<TokenBlocklist {self.jti}>'

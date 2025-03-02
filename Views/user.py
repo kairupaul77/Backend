@@ -2,6 +2,7 @@ from flask import jsonify, request, Blueprint, current_app
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from datetime import datetime
+from flask_cors import cross_origin
 from extensions import db, mail  # Assuming `db` and `mail` are initialized in extensions.py
 from flask_mail import Message
 from itsdangerous import URLSafeTimedSerializer
