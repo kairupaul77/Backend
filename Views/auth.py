@@ -72,7 +72,8 @@ def refresh():
 @auth_bp.route("/logout", methods=["DELETE"])
 @jwt_required()
 def logout():
-    from models import TokenBlocklist  # Import here to avoid circular imports
+    from models import db, TokenBlocklist  # Ensure db is imported
+
     jti = get_jwt()["jti"]
     now = datetime.now(timezone.utc)
 
