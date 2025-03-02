@@ -11,20 +11,24 @@ from extensions import db
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from werkzeug.security import generate_password_hash
-from models import User, Meal, TokenBlocklist
+from models import User, Meal, Order, Menu, Notification, TokenBlocklist
 from Views.auth import auth_bp
 from Views.user import user_bp
 from Views.meal import meal_bp
+from Views.menu import menu_bp
+from Views.order import order_bp  # Add this import
+from Views.notifications import notifications_bp
+
+
 from dotenv import load_dotenv
-from flask_cors import CORS  # Import Flask-CORS
+from flask_cors import CORS
 
 # Load environment variables
 load_dotenv()
 
-# Initialize the app
 app = Flask(__name__)
-# Enable CORS for all routes
-CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://localhost:5174"]}})
+CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://localhost:5174"], "supports_credentials": True}})
+
 
 # Flask app configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///app.db')  # Use SQLite
@@ -137,6 +141,10 @@ def send_email(subject, recipients, body):
 app.register_blueprint(auth_bp)
 app.register_blueprint(user_bp)
 app.register_blueprint(meal_bp)
+app.register_blueprint(menu_bp)
+app.register_blueprint(order_bp)
+app.register_blueprint(notifications_bp)
+
 
 # Home route
 @app.route('/')
