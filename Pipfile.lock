@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "b4dbcbced423ca4ce2e1946730125c508d6a68098db26d41400efdce7781948d"
+            "sha256": "e8480817b8b682945f584c8e68b9ef3db2b07e479f11a431a21339f7c35c46bc"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -430,12 +430,12 @@
         },
         "google-api-python-client": {
             "hashes": [
-                "sha256:324c0cce73e9ea0a0d2afd5937e01b7c2d6a4d7e2579cdb6c384f9699d6c9f37",
-                "sha256:9476a5a4f200bae368140453df40f9cda36be53fa7d0e9a9aac4cdb859a26448"
+                "sha256:080e8bc0669cb4c1fb8efb8da2f5b91a2625d8f0e7796cfad978f33f7016c6c4",
+                "sha256:88dee87553a2d82176e2224648bf89272d536c8f04dcdda37ef0a71473886dd7"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.7'",
-            "version": "==2.161.0"
+            "version": "==2.163.0"
         },
         "google-auth": {
             "hashes": [
@@ -463,11 +463,11 @@
         },
         "googleapis-common-protos": {
             "hashes": [
-                "sha256:95d38161f4f9af0d9423eed8fb7b64ffd2568c3464eb542ff02c5bfa1953ab3c",
-                "sha256:aaf179b2f81df26dfadac95def3b16a95064c76a5f45f07e4c68a21bb371c4ac"
+                "sha256:17835fdc4fa8da1d61cfe2d4d5d57becf7c61d4112f8d81c67eaa9d7ce43042d",
+                "sha256:5a46d58af72846f59009b9c4710425b9af2139555c71837081706b213b298187"
             ],
             "markers": "python_version >= '3.7'",
-            "version": "==1.68.0"
+            "version": "==1.69.0"
         },
         "greenlet": {
             "hashes": [
@@ -600,11 +600,11 @@
         },
         "jinja2": {
             "hashes": [
-                "sha256:8fefff8dc3034e27bb80d67c671eb8a9bc424c0ef4c0826edbff304cceff43bb",
-                "sha256:aba0f4dc9ed8013c424088f68a5c226f7d6097ed89b246d7749c2ec4175c6adb"
+                "sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d",
+                "sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67"
             ],
             "markers": "python_version >= '3.7'",
-            "version": "==3.1.5"
+            "version": "==3.1.6"
         },
         "kombu": {
             "hashes": [

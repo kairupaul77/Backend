@@ -21,6 +21,7 @@ python-dotenv = "*"
 flask-jwt-extended = "*"
 psycopg2-binary = "*"
 gunicorn = "*"
+"backports.zoneinfo" = "*"
 
 [dev-packages]
 
