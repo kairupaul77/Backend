@@ -1,8 +1,8 @@
-"""Initial migration
+"""Reinitializing migrations
 
-Revision ID: 8c70761381cb
+Revision ID: fa49e35261a7
 Revises: 
-Create Date: 2025-02-28 14:35:10.613690
+Create Date: 2025-03-06 00:06:58.130151
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '8c70761381cb'
+revision = 'fa49e35261a7'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -40,7 +40,7 @@ def upgrade():
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('email', sa.String(length=120), nullable=False),
     sa.Column('username', sa.String(length=80), nullable=False),
-    sa.Column('password_hash', sa.String(length=128), nullable=True),
+    sa.Column('password_hash', sa.String(length=512), nullable=True),
     sa.Column('role', sa.String(length=20), nullable=True),
     sa.Column('profile_img', sa.String(length=256), nullable=True),
     sa.Column('reset_token', sa.String(length=100), nullable=True),
@@ -84,14 +84,15 @@ def upgrade():
     op.create_table('orders',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
-    sa.Column('meal_id', sa.Integer(), nullable=False),
+    sa.Column('meal_id', sa.Integer(), nullable=True),
     sa.Column('menu_id', sa.Integer(), nullable=False),
     sa.Column('date', sa.DateTime(), nullable=False),
     sa.Column('quantity', sa.Integer(), nullable=False),
     sa.Column('total_price', sa.Float(), nullable=False),
-    sa.Column('status', sa.String(length=20), nullable=True),
+    sa.Column('status', sa.String(length=20), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('payment_status', sa.Boolean(), nullable=True),
     sa.ForeignKeyConstraint(['meal_id'], ['meals.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['menu_id'], ['menus.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),

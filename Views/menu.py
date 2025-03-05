@@ -71,7 +71,7 @@ def get_menu(menu_date):
 
     return jsonify({
         'date': menu_date_obj.strftime('%Y-%m-%d'),
-        'meals': [{'id': meal.id, 'name': meal.name, 'price': meal.price} for meal in menu.meals]
+        'meals': [{'id': meal.id, 'name': meal.name, 'price': meal.price, 'image':meal.image_url} for meal in menu.meals]
     }), 200
 
 # Customers select a meal from the menu
