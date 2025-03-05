@@ -82,3 +82,23 @@ def logout():
     db.session.commit()
 
     return jsonify({"success": "Logged out successfully"}), 200
+@auth_bp.route("/login_with_google", methods=["POST"])
+def login_with_google():
+    from models import User  
+
+    data = request.get_json()
+    email = data.get("email")
+
+    if not email:
+        return jsonify({"error": "Email is required"}), 400
+
+    user = User.query.filter_by(email=email).first()
+
+    if user:
+        access_token = create_access_token(identity=user.email)  # Use email as identity
+        refresh_token = create_refresh_token(identity=user.email)  # Generate refresh token
+        return jsonify(access_token=access_token, refresh_token=refresh_token), 200
+
+
+    return jsonify({"error": "Email is incorrect"}), 401
+

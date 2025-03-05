@@ -1,6 +1,8 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import Meal, User, db
+import os
+from werkzeug.utils import secure_filename
 
 meal_bp = Blueprint("meal", __name__, url_prefix="/meal")
 
@@ -15,6 +17,7 @@ def add_meal():
         return jsonify({"message": "Unauthorized - Not an Admin"}), 403
 
     data = request.get_json()
+    print("data is ",data)
     new_meal = Meal(
         name=data["name"],
         price=data["price"],
