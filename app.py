@@ -28,7 +28,7 @@ load_dotenv()
 app = Flask(__name__)
 
 # Allow specific origins and methods (including PUT and DELETE)
-CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://localhost:5174"],
+CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://localhost:5174", "https://pafaan-frontend.vercel.app"],
                              "supports_credentials": True,
                              "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
                              "allow_headers": ["Content-Type", "Authorization"]}})
@@ -37,7 +37,8 @@ CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://localh
 def add_headers(response):
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
     response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
-    response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
+    response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173" 
+    response.headers["Access-Control-Allow-Origin"] ="https://pafaan-frontend.vercel.app"
     response.headers["Access-Control-Allow-Credentials"] = "true"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
