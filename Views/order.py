@@ -4,6 +4,9 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from models import db, Order, User, Meal, Notification, Menu
 
+# Store the last fetched orders timestamp globally (in-memory storage for simplicity)
+last_fetched_time = None
+
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -14,7 +17,6 @@ order_bp = Blueprint('order_bp', __name__)
 def is_admin(user):
     return user and user.role == "admin"
 
-# Customer Creates an Order
 @order_bp.route('/orders/add', methods=['POST'])
 @jwt_required()
 def add_order_route():
@@ -25,88 +27,61 @@ def add_order_route():
         logging.debug(f"User not found for email: {email}")
         return jsonify({'message': 'User not found'}), 404
 
-    data = request.get_json()
-    logging.debug(f"Received payload: {data}")
-
-    # Validate menu_id
-    menu = Menu.query.get(data.get('menu_id'))
-    if not menu:
-        logging.debug(f"Menu not found for id: {data.get('menu_id')}")
-        return jsonify({'message': 'Menu not found'}), 404
-
-    # Validate meal_id (if required)
-    meal_id = data.get('meal_id')
-    if meal_id is None:
-        logging.debug("meal_id is required but not provided")
-        return jsonify({'message': 'meal_id is required'}), 400
-
-    # Validate date
     try:
-        order_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
-    except (ValueError, KeyError):
-        logging.debug("Invalid or missing date format")
-        return jsonify({'message': 'Invalid or missing date format, expected YYYY-MM-DD'}), 400
+        data = request.get_json()
+        logging.debug(f"Received payload in /orders/add: {data}")
 
-    # Check if the user already has an order for this date
-    if Order.query.filter_by(user_id=user.id, date=order_date).first():
-        logging.debug(f"User {user.id} already has an order for date: {order_date}")
-        return jsonify({'message': 'You have already placed an order for this date'}), 400
+        items = data.get('items')
+        if not isinstance(items, list) or not items:
+            logging.debug(f"Invalid items format received: {items}")
+            return jsonify({'message': 'Invalid items format, expected an array'}), 400
 
-    # Create new order
-    try:
-        new_order = Order(
-            user_id=user.id,
-            menu_id=menu.id,
-            meal_id=meal_id,
-            date=order_date,
-            quantity=data.get('quantity', 1),
-            total_price=data.get('total_price', 0.0)
-        )
-        db.session.add(new_order)
+        order_date = datetime.today().date()
+        total_price = 0.0
+        orders = []
+
+        for item in items:
+            menu_id = item.get('menu_id') or item.get('id')
+            quantity = item.get('quantity', 1)
+            price = item.get('price', 0.0)
+
+            menu = Menu.query.get(menu_id)
+            if not menu:
+                logging.debug(f"Menu not found for id: {menu_id}")
+                return jsonify({'message': f'Menu with id {menu_id} not found'}), 404
+
+            total_price += price * quantity
+
+            new_order = Order(
+                user_id=user.id,
+                menu_id=menu.id,
+                date=order_date,
+                quantity=quantity,
+                total_price=price * quantity,
+                payment_status=False  # Default to "Not Paid"
+            )
+            orders.append(new_order)
+
+        db.session.add_all(orders)
         db.session.commit()
         logging.debug(f"Order created successfully for user {user.id}")
-        return jsonify({'message': 'Order placed successfully'}), 201
+
+        return jsonify({
+            'message': 'Order placed successfully',
+            'total_price': total_price,
+            'payment_status': "Paid" if new_order.payment_status else "Not Paid"
+        }), 201
+
     except Exception as e:
         db.session.rollback()
         logging.error(f"Error creating order: {str(e)}")
         return jsonify({'message': 'Internal server error'}), 500
 
-# Order Management (Admin)
-@order_bp.route('/orders/change', methods=['POST'])
-@jwt_required()
-def change_order():
-    email = get_jwt_identity()
-    user = User.query.filter_by(email=email).first()
 
-    if not is_admin(user):
-        logging.debug(f"Unauthorized access attempt by user: {email}")
-        return jsonify({'message': 'Unauthorized. Admins only.'}), 403
-
-    data = request.get_json()
-    logging.debug(f"Received payload: {data}")
-
-    order = Order.query.get(data.get('order_id'))
-    if not order:
-        logging.debug(f"Order not found for id: {data.get('order_id')}")
-        return jsonify({'message': 'Order not found'}), 404
-
-    new_menu = Menu.query.get(data.get('new_menu_id'))
-    if not new_menu:
-        logging.debug(f"New menu not found for id: {data.get('new_menu_id')}")
-        return jsonify({'message': 'New menu item not found'}), 404
-
-    try:
-        order.menu_id = new_menu.id
-        db.session.commit()
-        logging.debug(f"Order {order.id} updated successfully")
-        return jsonify({'message': 'Order updated successfully'}), 200
-    except Exception as e:
-        db.session.rollback()
-        logging.error(f"Error updating order: {str(e)}")
-        return jsonify({'message': 'Internal server error'}), 500
 
 # Get All Orders (Admin Only)
-@order_bp.route('/orders', methods=['GET'])
+# Get All Orders (Admin Only)
+@order_bp.route('/orders/admin-history', methods=['GET'])
 @jwt_required()
 def get_orders():
     email = get_jwt_identity()
@@ -116,7 +91,9 @@ def get_orders():
         logging.debug(f"Unauthorized access attempt by user: {email}")
         return jsonify({'message': 'Unauthorized. Admins only.'}), 403
 
+    # Fetch all orders without filtering by date
     orders = Order.query.all()
+
     return jsonify({'orders': [
         {
             'id': order.id,
@@ -125,12 +102,12 @@ def get_orders():
             'meal_id': order.meal_id,
             'date': order.date.strftime('%Y-%m-%d'),
             'quantity': order.quantity,
-            'total_price': order.total_price
+            'total_price': order.total_price,
+            'status': order.status,  # Order status (e.g., pending, completed)
         }
         for order in orders
     ]})
 
-# Get Revenue (Admin Only)
 @order_bp.route('/orders/revenue', methods=['GET'])
 @jwt_required()
 def get_revenue():
@@ -141,10 +118,40 @@ def get_revenue():
         logging.debug(f"Unauthorized access attempt by user: {email}")
         return jsonify({'message': 'Unauthorized. Admins only.'}), 403
 
-    revenue = db.session.query(db.func.sum(Order.total_price)).scalar()
-    logging.debug(f"Total revenue: {revenue}")
-    return jsonify({'revenue': revenue or 0})
+    # Get date from query parameters, default to today
+    date_str = request.args.get('date', datetime.utcnow().strftime('%Y-%m-%d'))
+    
+    try:
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'message': 'Invalid date format. Use YYYY-MM-DD.'}), 400
 
+    # Log the date to ensure correct date is being passed
+    logging.debug(f"Fetching revenue for date: {date_obj}")
+
+    # Check if there are orders for the given date
+    orders_today = Order.query.filter(db.func.date(Order.date) == date_obj).all()
+    for order in orders_today:
+        logging.debug(f"Order ID: {order.id}, Date: {order.date}, Total Price: {order.total_price}")
+
+    # Calculate total revenue and order count for the given date
+    revenue = db.session.query(db.func.sum(Order.total_price)) \
+        .filter(db.func.date(Order.date) == date_obj) \
+        .scalar()
+
+    order_count = db.session.query(db.func.count(Order.id)) \
+        .filter(db.func.date(Order.date) == date_obj) \
+        .scalar()
+
+    logging.debug(f"Total revenue for {date_obj}: {revenue}, Total orders: {order_count}")
+    
+    return jsonify({
+        'revenue': revenue if revenue is not None else 0,
+        'total_orders': order_count if order_count is not None else 0
+    })
+
+
+# Order History for Customers
 # Order History for Customers
 @order_bp.route('/orders/history', methods=['GET'])
 @jwt_required()
@@ -157,6 +164,7 @@ def get_order_history():
         return jsonify({'message': 'User not found'}), 404
 
     orders = Order.query.filter_by(user_id=user.id).all()
+
     return jsonify({'orders': [
         {
             'id': order.id,
@@ -164,35 +172,46 @@ def get_order_history():
             'meal_id': order.meal_id,
             'date': order.date.strftime('%Y-%m-%d'),
             'quantity': order.quantity,
-            'total_price': order.total_price
+            'total_price': order.total_price,
+            'payment_status': 'Paid' if user.role == 'customer' else order.payment_status  # Only show 'Paid' to customers
         }
         for order in orders
     ]})
 
-# Admin Order History (Admin Only)
-@order_bp.route('/orders/admin-history', methods=['GET'])
-@jwt_required()
+
+
+# Admin Order History (Admin Only)@order_bp.route('/order-history', methods=['GET'])
+@jwt_required()  # Ensures the user is logged in
 def get_admin_order_history():
-    email = get_jwt_identity()
+    email = get_jwt_identity()  # Get the email of the current user
+    
+    # Fetch the user from the database based on the email
     user = User.query.filter_by(email=email).first()
-
-    if not is_admin(user):
-        logging.debug(f"Unauthorized access attempt by user: {email}")
-        return jsonify({'message': 'Unauthorized. Admins only.'}), 403
-
+    
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+    
+    # Check if the user is an admin
+    if user.role != 'admin':
+        return jsonify({"message": "Access denied. Admins only."}), 403
+    
+    # Query all orders from the database
     orders = Order.query.all()
-    return jsonify({'orders': [
-        {
-            'id': order.id,
-            'user_id': order.user_id,
-            'menu_id': order.menu_id,
-            'meal_id': order.meal_id,
-            'date': order.date.strftime('%Y-%m-%d'),
-            'quantity': order.quantity,
-            'total_price': order.total_price
-        }
-        for order in orders
-    ]})
+    
+    # Serialize orders to return to the frontend
+    order_list = [{
+        'id': order.id,
+        'customer_name': order.user.username,  # Using 'username' as the customer name
+        'menu_date': order.menu.date.strftime('%Y-%m-%d') if order.menu else "No menu assigned",  # Use 'menu_date'
+        'meal': order.meal.name if order.meal else "No meal assigned",  # Use 'meal' name (not ID)
+        'quantity': order.quantity,
+        'status': order.status,
+        'order_date': order.date.strftime('%Y-%m-%d %H:%M:%S')  # Format the order date
+    } for order in orders]
+    
+    return jsonify({"orders": order_list}), 200
+
+
 
 # Notifications for Users
 # notifications_bp = Blueprint('notifications_bp', __name__)
