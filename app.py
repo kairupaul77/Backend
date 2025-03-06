@@ -100,6 +100,8 @@ app.register_blueprint(notifications_bp)
 def home():
     return "Welcome to the Book-A-Meal API!"
 
+
+
 # Run the app
 if __name__ == "__main__":
     app.run(debug=True)
