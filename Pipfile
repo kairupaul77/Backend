@@ -24,6 +24,32 @@ gunicorn = "*"
 "backports.zoneinfo" = "*"
 
 [dev-packages]
+[tool.poetry.dependencies]
+python = "^3.8"
+werkzeug = "*"
+flask-dance = "*"
+flask = "*"
+flask-mail = "*"
+celery = "*"
+redis = "*"
+google-auth-oauthlib = "*"
+google-api-python-client = "*"
+itsdangerous = "*"
+flask-sqlalchemy = "*"
+flask-migrate = "*"
+authlib = "*"
+flask-cors = "*"
+python-dotenv = "*"
+flask-jwt-extended = "*"
+psycopg2-binary = "*"
+gunicorn = "*"
+backports.zoneinfo = "*"
 
+[tool.poetry.dev-dependencies]
+
+[tool.poetry.source]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
 [requires]
 python_version = "3.8"
