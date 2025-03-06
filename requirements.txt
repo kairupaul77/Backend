@@ -23,6 +23,7 @@ Flask-JWT-Extended==4.6.0
 Flask-Mail==0.10.0
 Flask-Migrate==4.1.0
 Flask-SQLAlchemy==3.1.1
+gunicorn==23.0.0
 google-api-core==2.24.1
 google-api-python-client==2.161.0
 google-auth==2.38.0
